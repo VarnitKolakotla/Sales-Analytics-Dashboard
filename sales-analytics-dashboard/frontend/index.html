@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sales Analytics Dashboard — Big Data on Cloud Storage</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="glow g1"></div><div class="glow g2"></div>
+
+<header class="top">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="30" height="30"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+        <rect width="32" height="32" rx="9" fill="url(#lg)"/><path d="M7 21l6-6 4 4 8-9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="25" cy="10" r="2" fill="#fff"/></svg>
+    </div>
+    <div>
+      <h1>Sales Analytics Dashboard</h1>
+      <p>Big Data Analysis on Cloud Storage &nbsp;·&nbsp; Parquet data lake &nbsp;·&nbsp; DuckDB &nbsp;·&nbsp; Flask API</p>
+    </div>
+  </div>
+  <div class="pills">
+    <span class="pill" id="pill-storage" title="Where the data physically lives"><i class="dot"></i><b>Storage</b> <span>connecting…</span></span>
+    <span class="pill" id="pill-rows"><b>Rows</b> <span>—</span></span>
+    <span class="pill" id="pill-perf" title="Latency of the last analytics query"><b>⚡ Query</b> <span>—</span></span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab-btn active" data-tab="overview">📊 Overview</button>
+  <button class="tab-btn" data-tab="customers">👥 Customers &amp; Baskets</button>
+  <button class="tab-btn" data-tab="predict">🔮 Forecast &amp; Anomalies</button>
+  <button class="tab-btn" data-tab="cloud">☁️ Cloud Data Lake</button>
+</nav>
+
+<section class="filters" id="filters">
+  <div class="seg" id="presets"></div>
+  <label>From <input type="date" id="f-from"></label>
+  <label>To <input type="date" id="f-to"></label>
+  <label>Region <select id="f-region"><option value="">All regions</option></select></label>
+  <label>Category <select id="f-category"><option value="">All categories</option></select></label>
+  <label>Channel <select id="f-channel"><option value="">All channels</option></select></label>
+  <button class="btn ghost" id="f-reset">Reset</button>
+  <details class="menu">
+    <summary class="btn">⬇ Export CSV</summary>
+    <div class="menu-list" id="export-list"></div>
+  </details>
+</section>
+
+<div id="banner" class="banner" hidden></div>
+
+<main>
+  <!-- ============================== OVERVIEW ============================== -->
+  <section class="tabpane active" id="pane-overview">
+    <div class="kpis" id="kpis"></div>
+    <div class="grid">
+      <article class="card s8">
+        <div class="card-h"><div><h3>Revenue trend</h3><span class="sub">Time-series aggregation · moving average · year-over-year overlay</span></div>
+          <div class="ctrl">
+            <div class="seg small" id="metric-seg"><button data-v="revenue" class="on">Revenue</button><button data-v="profit">Profit</button><button data-v="orders">Orders</button></div>
+            <div class="seg small" id="grain-seg"><button data-v="day">Day</button><button data-v="week">Week</button><button data-v="month" class="on">Month</button></div>
+          </div></div>
+        <div class="chart tall"><canvas id="ch-trend"></canvas></div>
+      </article>
+      <article class="card s4">
+        <div class="card-h"><div><h3>Revenue by category</h3><span class="sub">GROUP BY + window share</span></div></div>
+        <div class="chart tall"><canvas id="ch-category"></canvas></div>
+      </article>
+
+      <article class="card s6">
+        <div class="card-h"><div><h3>Region × category mix</h3><span class="sub">Two-dimensional aggregation (pivot)</span></div></div>
+        <div class="chart"><canvas id="ch-matrix"></canvas></div>
+      </article>
+      <article class="card s6">
+        <div class="card-h"><div><h3>Top states by revenue</h3><span class="sub">Geographic drill-down · profit margin on hover</span></div></div>
+        <div class="chart"><canvas id="ch-state"></canvas></div>
+      </article>
+
+      <article class="card s7">
+        <div class="card-h"><div><h3>Top products</h3><span class="sub">Ranked by revenue · margin &amp; discount depth</span></div></div>
+        <div class="table-wrap"><table class="tbl" id="tbl-products"></table></div>
+      </article>
+      <article class="card s5">
+        <div class="card-h"><div><h3>Sales channels</h3><span class="sub">Channel mix shifting to mobile app</span></div></div>
+        <div class="chart"><canvas id="ch-channel"></canvas></div>
+      </article>
+
+      <article class="card s8">
+        <div class="card-h"><div><h3>When do customers buy?</h3><span class="sub">Weekday × month revenue heat-map</span></div></div>
+        <div id="heatmap" class="heatmap"></div>
+      </article>
+      <article class="card s4">
+        <div class="card-h"><div><h3>Payment methods</h3><span class="sub">Share of revenue</span></div></div>
+        <div class="chart"><canvas id="ch-payment"></canvas></div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================== CUSTOMERS ============================== -->
+  <section class="tabpane" id="pane-customers">
+    <div class="grid">
+      <article class="card s5">
+        <div class="card-h"><div><h3>RFM customer segments</h3><span class="sub">Recency · Frequency · Monetary scoring with NTILE(5) window functions</span></div></div>
+        <div class="chart tall"><canvas id="ch-rfm"></canvas></div>
+        <p class="note">Bars compare each segment's <b>share of customers</b> with its <b>share of revenue</b> — the Pareto effect: a small group of Champions drives a large part of sales.</p>
+      </article>
+      <article class="card s7">
+        <div class="card-h"><div><h3>Segment playbook</h3><span class="sub" id="rfm-sub"></span></div></div>
+        <div class="table-wrap"><table class="tbl" id="tbl-rfm"></table></div>
+      </article>
+      <article class="card s12">
+        <div class="card-h"><div><h3>Cohort retention</h3><span class="sub">% of each month's new customers who purchase again in the following months</span></div></div>
+        <div class="table-wrap"><table class="tbl cohort" id="tbl-cohort"></table></div>
+      </article>
+      <article class="card s12">
+        <div class="card-h"><div><h3>Market-basket analysis</h3><span class="sub">Association rules over millions of order lines · support · confidence · lift (self-join on order_id)</span></div></div>
+        <div class="table-wrap"><table class="tbl" id="tbl-basket"></table></div>
+        <p class="note"><b>Lift &gt; 1</b> means the two products are bought together more often than chance — a direct input for bundles and recommendations.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================== PREDICT ============================== -->
+  <section class="tabpane" id="pane-predict">
+    <div class="grid">
+      <article class="card s8">
+        <div class="card-h"><div><h3>Revenue forecast — next 6 months</h3><span class="sub" id="fc-model">Log-linear trend × seasonal index</span></div></div>
+        <div class="chart tall"><canvas id="ch-forecast"></canvas></div>
+      </article>
+      <article class="card s4">
+        <div class="card-h"><div><h3>Model report</h3><span class="sub">Quality &amp; seasonality</span></div></div>
+        <div class="stat-tiles" id="fc-stats"></div>
+        <div class="chart small"><canvas id="ch-season"></canvas></div>
+      </article>
+      <article class="card s12">
+        <div class="card-h"><div><h3>Anomaly detection</h3><span class="sub" id="an-method">Robust z-score on weekday-adjusted daily revenue</span></div>
+          <div class="ctrl"><span class="chip" id="an-count"></span></div></div>
+        <div class="chart tall"><canvas id="ch-anom"></canvas></div>
+      </article>
+      <article class="card s12">
+        <div class="card-h"><div><h3>Most unusual days</h3><span class="sub">Ranked by absolute z-score</span></div></div>
+        <div class="table-wrap"><table class="tbl" id="tbl-anom"></table></div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============================== CLOUD ============================== -->
+  <section class="tabpane" id="pane-cloud">
+    <div class="grid">
+      <article class="card s12">
+        <div class="card-h"><div><h3>System architecture</h3><span class="sub">End-to-end data flow — every box here is implemented and running in this project</span></div></div>
+        <div class="arch" id="arch"></div>
+      </article>
+
+      <article class="card s5">
+        <div class="card-h"><div><h3>Cloud storage — data-lake zones</h3><span class="sub" id="lake-sub"></span></div></div>
+        <div id="zones" class="zones"></div>
+      </article>
+      <article class="card s7">
+        <div class="card-h"><div><h3>Latest ETL run</h3><span class="sub" id="etl-sub"></span></div></div>
+        <div class="stat-tiles wide" id="etl-tiles"></div>
+        <div class="chart small"><canvas id="ch-reasons"></canvas></div>
+      </article>
+
+      <article class="card s7">
+        <div class="card-h"><div><h3>Bucket explorer</h3><span class="sub">Objects as they exist in cloud storage (Hive-style partitions)</span></div></div>
+        <div class="table-wrap"><table class="tbl mono" id="tbl-objects"></table></div>
+      </article>
+      <article class="card s5">
+        <div class="card-h"><div><h3>Live ingestion</h3><span class="sub">Upload → cloud storage → ETL → dashboard, in seconds</span></div></div>
+        <div class="ingest">
+          <p class="note">1. Download a CSV of brand-new orders (it contains a few dirty rows on purpose).<br>2. Upload it. Watch the pipeline clean it and the dashboard update.</p>
+          <a class="btn" id="sample-link" href="/api/sample.csv?seed=1" download>⬇ Download sample CSV</a>
+          <label class="drop" id="drop">
+            <input type="file" id="file" accept=".csv" hidden>
+            <span class="drop-t"><b>Drop a CSV here</b> or click to browse</span>
+            <span class="drop-s" id="drop-name">No file selected</span>
+          </label>
+          <button class="btn primary" id="btn-ingest" disabled>☁ Upload &amp; process</button>
+          <ol class="steps" id="ingest-steps"></ol>
+        </div>
+      </article>
+
+      <article class="card s12">
+        <div class="card-h"><div><h3>Pipeline run history</h3><span class="sub">Every run writes a manifest to <code>_meta/runs/</code> in the bucket</span></div></div>
+        <div class="table-wrap"><table class="tbl" id="tbl-runs"></table></div>
+      </article>
+      <article class="card s12">
+        <div class="card-h"><div><h3>Course concepts → where they appear in this project</h3><span class="sub">Big Data Analysis &amp; Cloud Computing</span></div></div>
+        <div class="table-wrap"><table class="tbl" id="tbl-concepts"></table></div>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>Sales Analytics Dashboard · Big Data Analysis &amp; Cloud Computing project</span>
+  <span id="foot-stats">0 queries</span>
+</footer>
+<div id="toast" class="toast" hidden></div>
+
+<script src="vendor/chart.umd.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
